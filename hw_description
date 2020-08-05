@@ -1,0 +1,209 @@
+CSC 407: Computer Systems II: 2019 Fall
+Assignment #2
+Last Modified 2019 October 9
+
+Purpose:
+To go over:
+Processes
+fork() and execl()
+Signals
+Computing
+Please ssh into 140.192.36.184, 140.192.36.185, 140.192.36.186, 140.192.36.187 or use your own Unix machine.
+
+Description
+The mother of two children was going yardwork while wearing a decorative pin in her hair. Unfortunately, she lost her pin in a pile of grass. She wants to motivate her children to find the pin: $20 to whomever finds it first!
+
+Sample output:
+$ ./mother 
+Mother: "I will give $20 to whomever finds my decorative pin in the pile of grass.  Go!"
+Betty 8649: "Mom, have you thought of using a magnet?"
+Fred 8650: "It smells nice, but no pin yet."
+Betty 8649: "Mom, have you thought of using a magnet?"
+Fred 8650: "It smells nice, but no pin yet."
+Betty 8649: "Ouch!  I got pricked by a . . . Hey, look at what I found!"
+Mother: "Thank you for finding my pin, here is $20"
+Fred 8650: "It smells nice, but no pin yet."
+Betty 8649: "Yay!  I win!  $20 is all mine!"
+Fred 8650: "Mom, have you thought of using a magnet?"
+Fred 8650: "Man!  Now my hands are itchy."
+$ ./mother 
+Mother: "I will give $20 to whomever finds my decorative pin in the pile of grass.  Go!"
+Fred 8659: "Ouch!  I got pricked by a . . . Hey, look at what I found!"
+Betty 8658: "It's just grass, not pin yet."
+Mother: "Thank you for finding my pin, here is $20"
+Betty 8658: "It smells nice, but no pin yet."
+Betty 8658: "That wasn't fair!  I was just getting started!"
+Fred 8659: "Yay!  I win!  $20 is all mine!"
+$ ./mother 
+Mother: "I will give $20 to whomever finds my decorative pin in the pile of grass.  Go!"
+Catherine 8668: "Ouch!  I got pricked by a . . . Hey, look at what I found!"
+Gerald 8669: "It smells nice, but no pin yet."
+Mother: "Thank you for finding my pin, here is $20"
+Catherine 8668: "Yay!  I win!  $20 is all mine!"
+Gerald 8669: "Ouch!  I got pricked by a . . . Hey, look at what I found!"
+Gerald 8669: "Yay!  I win!  $20 is all mine!"
+Mother: "Thank you for finding my pin, here is $20"
+$ ./mother 
+Mother: "I will give $20 to whomever finds my decorative pin in the pile of grass.  Go!"
+Hal 8688: "Mom, have you thought of using a magnet?"
+Dorothy 8687: "Mom, have you thought of using a magnet?"
+Dorothy 8687: "It's just grass, not pin yet."
+Hal 8688: "It smells nice, but no pin yet."
+Dorothy 8687: "It smells nice, but no pin yet."
+Hal 8688: "Ouch!  I got pricked by a . . . Hey, look at what I found!"
+Mother: "Thank you for finding my pin, here is $20"
+Dorothy 8687: "It's just grass, not pin yet."
+Dorothy 8687: "Man!  Now my hands are itchy."
+Hal 8688: "Yay!  I win!  $20 is all mine!"
+Protocol:
+There are 2 programs (mother.c and child.c) that run 3 processes (1 mother, 2 children).
+
+mother.c installs a SIGUSR1 signal handler, and fork()s and execl()s both child processes. She then hangs out.
+
+The child processes installs a SIGTERM signal handler, and look for the pin.
+
+When a child finds it, the child sends SIGUSR1 to its parent (the mother process).
+
+When the mother receives SIGUSR1, it sends SIGTERM to all of its children, causing them to stop.
+
+The mother then wait()s for both children, and quits herself.
+
+Mother
+   |
+   |fork()/execl() child0
+   |---------------->|
+   |                 |
+   |fork()/execl()   |         child1
+   |-----------------|----------->|
+   |                 |            |
+   |                 |            |
+   |                 |            |
+   |                 |            |
+   |             (searching)  (searching)
+   |                 |            |
+   |                 |            |
+   |         SIGUSR1 |            |
+   |<----------------|            |
+   |                 |            |
+   | SIGTERM         |            |
+   |---------------->|            |
+   |                 |            |
+   | SIGTERM         |            |
+   |-----------------|----------->|
+   |                 |            |
+   |              (stops)      (stops)  
+   |
+(stops)
+      
+Assignment:
+mother.c
+Start with this code:
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <signal.h>
+#include <unistd.h>
+
+const char*	FEMALE_NAME_ARRAY[]
+				= {"Anna",
+				   "Betty",
+				   "Catherine",
+				   "Dorothy"
+				  };
+
+const char*	MALE_NAME_ARRAY[]
+				= {"Eric",
+				   "Fred",
+				   "Gerald",
+				   "Hal"
+				  };
+
+const int	NUM_CHILDREN	= 2;
+You may change the names, but please keep both arrays the same length!
+main() should do the following:
+srand(getpid());
+This resets the random number generator so that the program does not behave exactly the same each time.
+Install a simple handler to be called when SIGUSR1 is received. What will it do? Keep reading!
+  printf("Mother: \"I will give $20 to whomever finds my "
+	 "decorative pin in the pile of grass.  Go!\"\n");
+
+  pid_t	childIdArray[NUM_CHILDREN];
+		
+NUM_CHILDREN times, make a child process. Put the process id of the child in array childIdArray[].
+
+The child process should run the program named "./child". In addition to giving the program name twice, pass the name of the child. Assuming int i is the loop variable telling which child to make, then one way to randomly choose the name of a child is with:
+
+  const char**	nameArray;
+  const char*	nameCPtr;
+
+  nameArray	= (i == 0) ? FEMALE_NAME_ARRAY : MALE_NAME_ARRAY;
+  nameCPtr	= nameArray[ rand() %
+			     (sizeof(FEMALE_NAME_ARRAY) / sizeof(const char*))
+			   ];
+After making her children, the mother process just hangs out:
+  while (/* some condition */)
+    sleep(1);
+		
+What should /* some condition */ be? Well, you want the loop to stop after the process receives SIGUSR1. Therefore, what should your SIGUSR1 handler do?
+After finishing the loop, have the mother process send SIGTERM to all of her child processes. Have your parent to a wait() for each child.
+Finish with return(EXIT_SUCCESS);
+Your SIGUSR1 handler should do: printf("Mother: \"Thank you for finding my pin, here is $20.\"\n");
+
+It should also change the program so it gets out of the while loop in main(). What type of variable might be useful for that?
+
+child.c
+main() should verify that the child has been given its name on the command line. (It should be argv[1])
+It should install a SIGTERM handler.
+
+What should it do? Make the program end both while() loops.
+
+srand(getpid());
+This resets the random number generator so that the program does not behave exactly the same each time.
+It should have a loop like:
+int	numAttempts	= 0;
+int	haveFoundPin	= 0;
+
+while  ( /* some condition */ && !haveFoundPin )
+{
+  sleep(1);
+
+  numAttempts++;
+
+  switch  (rand() % 4)
+  {
+  case 0 :
+    //  print some message
+    break;
+  case 1 :
+    //  print some message
+    break;
+  case 2 :
+    //  print some message
+    break;
+  case 3 :
+    //  print some message
+    //  Send SIGUSR1 to parent
+    haveFoundPin	= 1;
+    break;
+  }
+}
+	    
+For each case make it print some message. The message should be disappointing for cases 0, 1 and 2. However, for case 3, it should:
+Print a message of pleasant surprise
+Send SIGUSR1 to its parent
+Set haveFoundPin = 1
+After making her children, the mother process just hangs out:
+  while (/* some condition */)
+    sleep(1);
+What should /* some condition */ be? Well, you want the loop to stop after the process receives SIGTERM. Therefore, what should your SIGTERM handler do?
+  if  (haveFoundPin)
+  {
+    printf("%s %d: \"Yay!  I win!  $20 is all mine!\"\n",nameCPtr,getpid());
+  }
+  else
+  {
+    // Child did not find pin
+  }
+	    
+If the child did not find the pin then it should print a message of disappointment. Better still, make it print different messages based upon the value of numAttempts.
+Finish with return(EXIT_SUCCESS);
